@@ -1,0 +1,25 @@
+@startuml a_container
+!include <C4/C4_Container>
+LAYOUT_TOP_DOWN()
+title Вариант 1 — C4 Container
+Person(customer, "Клиент", "Настройки и подтверждение push")
+System_Ext(bank, "Бизнес-сервисы банка", "Платежи и исходящий outbox")
+System_Ext(providers, "Провайдеры", "FCM/APNs, SMS-A/B, email")
+System_Boundary(platform, "Notification Platform") {
+  Container(api, "Notification API", "Go / HTTPS", "Приём, настройки, ACK и callback")
+  ContainerDb(db, "Delivery Store", "PostgreSQL HA", "Уведомления, попытки, настройки, inbox/outbox")
+  Container(relay, "Relay и Scheduler", "Go", "Публикация outbox и устойчивые таймеры")
+  ContainerQueue(queue, "Critical Queue", "RabbitMQ quorum queues", "Задания критичной доставки")
+  Container(worker, "Delivery Workers", "Go", "Автомат состояний и адаптеры каналов")
+}
+Rel(bank, api, "Передаёт событие", "HTTPS")
+Rel(customer, api, "Меняет настройки; подтверждает push", "HTTPS")
+Rel(api, db, "Сохраняет данные атомарно", "SQL")
+Rel(relay, db, "Читает outbox и сроки", "SQL")
+Rel(relay, queue, "Публикует с confirms", "AMQP")
+Rel(queue, worker, "Передаёт задания", "AMQP")
+Rel(worker, db, "Меняет состояния; создаёт outbox", "SQL")
+Rel(worker, providers, "Отправляет и проверяет статус", "HTTPS")
+Rel(providers, api, "Отправляет callback", "HTTPS")
+Rel(providers, customer, "Доставляет уведомление")
+@enduml

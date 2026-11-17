@@ -1,0 +1,28 @@
+@startuml a_main
+title Вариант 1 — успешная доставка push
+autonumber
+participant "API / Relay" as I
+database PostgreSQL as D
+queue RabbitMQ as Q
+participant Worker as W
+participant "Push provider" as P
+actor "Приложение клиента" as U
+I -> D: Notification + outbox, COMMIT
+D --> I: Устойчивое сохранение
+note over I: Ответ отправителю: ACCEPTED
+I -> Q: Публикация outbox
+Q --> I: Publisher confirm
+Q -> W: Задание
+W -> D: Проверить состояние;\nсоздать Attempt, COMMIT
+W -> P: Send(notification_id, attempt_id)
+P --> W: Принято провайдером
+W -> D: ACCEPTED_BY_PROVIDER + срок проверки
+W --> Q: Consumer ACK
+P -> U: Push
+U -> I: Авторизованный ACK(notification_id)
+I -> D: Сохранить подтверждение + outbox
+I -> Q: Событие подтверждения
+Q -> W: Подтверждение
+W -> D: DELIVERED;\nотменить неотправленные задания
+W --> Q: Consumer ACK
+@enduml

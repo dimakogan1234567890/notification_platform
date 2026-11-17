@@ -1,0 +1,27 @@
+@startuml b_container
+!include <C4/C4_Container>
+LAYOUT_TOP_DOWN()
+title Вариант 2 — C4 Container
+Person(customer, "Клиент", "Настройки и подтверждение push")
+System_Ext(bank, "Бизнес-сервисы банка", "Платежи и исходящий outbox")
+System_Ext(providers, "Провайдеры", "FCM/APNs, SMS-A/B, email")
+System_Boundary(platform, "Notification Platform") {
+  Container(api, "Notification API", "Go / HTTPS", "Приём, настройки, ACK и callback")
+  ContainerDb(appdb, "Application Store", "PostgreSQL HA", "Приём, настройки, попытки, inbox/outbox")
+  Container(bridge, "Workflow Bridge", "Go / Temporal SDK", "Запускает workflows и передаёт Signals")
+  Container(temporal, "Temporal Server", "Temporal", "История процессов, таймеры, Task Queues")
+  ContainerDb(tdb, "Workflow Store", "PostgreSQL HA", "Устойчивое состояние Temporal")
+  Container(workers, "Workflow / Activity Workers", "Go / Temporal SDK", "Маршрут, адаптеры и обновление проекции")
+}
+Rel(bank, api, "Передаёт событие", "HTTPS")
+Rel(customer, api, "Меняет настройки; подтверждает push", "HTTPS")
+Rel(api, appdb, "Сохраняет приём и события", "SQL")
+Rel(bridge, appdb, "Читает inbox/outbox", "SQL")
+Rel(bridge, temporal, "StartWorkflow / Signal", "gRPC")
+Rel(temporal, tdb, "Сохраняет историю", "SQL")
+Rel(workers, temporal, "Получает задачи; возвращает результаты", "gRPC")
+Rel(workers, appdb, "Читает настройки; ведёт попытки", "SQL")
+Rel(workers, providers, "Отправляет и проверяет статус", "HTTPS")
+Rel(providers, api, "Отправляет callback", "HTTPS")
+Rel(providers, customer, "Доставляет уведомление")
+@enduml

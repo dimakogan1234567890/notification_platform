@@ -1,0 +1,27 @@
+@startuml b_main
+title Вариант 2 — успешная доставка push
+autonumber
+participant "API / Bridge" as I
+database "Application DB" as D
+participant Temporal as T
+participant "Workflow / Activity Worker" as W
+participant "Push provider" as P
+actor "Приложение клиента" as U
+I -> D: Notification + outbox, COMMIT
+note over I: Ответ отправителю: ACCEPTED
+I -> T: StartWorkflow(notification_id)
+T -> W: Задача workflow
+W -> T: Запланировать SendPush Activity
+T -> W: Задача Activity
+W -> D: Сохранить Attempt
+W -> P: Push(attempt_id)
+P --> W: Принято
+W -> T: Результат Activity;\nожидание Signal / таймера
+P -> U: Push
+U -> I: Авторизованный ACK
+I -> D: Подтверждение в inbox
+I -> T: Signal(delivery_event_id)
+T -> W: Продолжить workflow
+W -> D: Обновить проекцию: DELIVERED
+W -> T: Завершить workflow
+@enduml

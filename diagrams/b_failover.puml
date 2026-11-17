@@ -1,0 +1,27 @@
+@startuml b_failover
+title Вариант 2 — устойчивый таймер и переход в SMS
+autonumber
+participant Temporal as T
+participant "Workflow / Activity Worker" as W
+database "Application DB" as D
+participant "Push / SMS providers" as P
+participant "API / Bridge" as I
+T -> W: SendPush Activity
+W -> D: Сохранить push Attempt
+W -> P: Push
+P --> W: Принято; подтверждения нет
+W -> T: Результат Activity;\nсоздать устойчивый таймер
+... Worker может перезапуститься ...
+T -> W: Таймер истёк;\nвосстановить workflow по истории
+W -> T: Запланировать SMS Activity
+T -> W: SMS Activity
+W -> D: Проверить отсутствие доставки;\nсоздать SMS Attempt
+W -> P: SMS(idempotency_key)
+P -> I: DLR: delivered
+I -> D: Сохранить DLR в inbox
+I -> T: Signal(delivery_event_id)
+T -> W: Обработать подтверждение
+W -> D: Проекция: DELIVERED
+W -> T: Завершить workflow
+note over T,I: Поздние события сохраняются в аудите.\nДля завершённого процесса новая доставка не запускается.
+@enduml

@@ -1,0 +1,28 @@
+@startuml a_failover
+title Вариант 1 — push без подтверждения, переход в SMS
+autonumber
+participant "Relay / Scheduler" as R
+database PostgreSQL as D
+queue RabbitMQ as Q
+participant Worker as W
+participant "Push / SMS providers" as P
+participant "Callback API" as A
+W -> D: Создать push Attempt
+W -> P: Push
+P --> W: Принято; подтверждения доставки нет
+W -> D: WAITING; next_action_at
+R -> D: Найти истёкший срок;\nсоздать outbox
+R -> Q: Проверка / failover
+Q -> W: Задание
+W -> D: Проверить отсутствие подтверждения;\nсоздать SMS Attempt
+W -> P: SMS(idempotency_key)
+P --> W: Принято
+P -> A: SMS DLR: delivered
+A -> D: Сохранить DLR + outbox
+R -> Q: Событие подтверждения
+Q -> W: SMS подтверждено
+W -> D: DELIVERED
+... Позднее приходит push ACK ...
+A -> D: Сохранить позднее событие
+note over D,W: Статус остаётся DELIVERED.\nНовые отправки запрещены.\nУже доставленные SMS и push отозвать нельзя.
+@enduml
